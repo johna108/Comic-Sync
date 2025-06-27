@@ -1,4 +1,4 @@
-# Virtual Browser Sync - Fixed Version
+# Virtual Browser Sync
 
 A real-time synchronized browser using **Selenium** instead of Playwright for better reliability.
 

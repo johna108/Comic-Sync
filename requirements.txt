@@ -1,0 +1,8 @@
+Flask==2.3.3
+Flask-SocketIO==5.3.6
+Flask-CORS==4.0.0
+python-socketio==5.8.0
+eventlet==0.33.3
+gunicorn==21.2.0
+selenium==4.15.0
+webdriver-manager==4.0.1

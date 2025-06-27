@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual Browser Sync</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+</head>
+<body class="bg-gradient-to-br from-purple-50 to-blue-50 min-h-screen">
+    <div class="min-h-screen flex items-center justify-center p-4">
+        <div class="w-full max-w-lg bg-white rounded-lg shadow-lg">
+            <div class="p-6 text-center border-b">
+                <h1 class="text-2xl font-bold text-gray-800 mb-2">Virtual Browser Sync</h1>
+                <p class="text-gray-600">Real-time synchronized browsing with live screenshots</p>
+            </div>
+            
+            <div class="p-6 space-y-6">
+                <!-- User Name -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Your Name</label>
+                    <input 
+                        type="text" 
+                        id="userName" 
+                        placeholder="Enter your name"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                </div>
+
+                <!-- Create Room -->
+                <div class="border rounded-lg p-4 bg-purple-50">
+                    <h3 class="font-semibold text-gray-800 mb-3">Create Virtual Browser Room</h3>
+                    <div class="space-y-3">
+                        <button 
+                            id="createRoom"
+                            class="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
+                        >
+                            Create Room
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Join Room -->
+                <div class="border rounded-lg p-4 bg-blue-50">
+                    <h3 class="font-semibold text-gray-800 mb-3">Join Existing Room</h3>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Room Code</label>
+                            <input 
+                                type="text" 
+                                id="roomCode" 
+                                placeholder="Enter 6-digit room code"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+                                maxlength="6"
+                            />
+                        </div>
+                        <button 
+                            id="joinRoom"
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
+                        >
+                            Join Room
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Status -->
+                <div id="statusDisplay" class="hidden p-4 bg-gray-50 rounded-lg">
+                    <div class="text-sm text-gray-600">
+                        <div class="flex items-center justify-between">
+                            <span id="statusText">Processing...</span>
+                            <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function generateRoomCode() {
+            return Math.random().toString(36).substring(2, 8).toUpperCase();
+        }
+
+        function isValidUrl(url) {
+            try {
+                new URL(url);
+                return true;
+            } catch {
+                return false;
+            }
+        }
+
+        function showStatus(message, isError = false) {
+            const statusDisplay = document.getElementById('statusDisplay');
+            const statusText = document.getElementById('statusText');
+            
+            statusText.textContent = message;
+            statusDisplay.className = `p-4 rounded-lg ${isError ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'}`;
+            statusDisplay.classList.remove('hidden');
+        }
+
+        function hideStatus() {
+            document.getElementById('statusDisplay').classList.add('hidden');
+        }
+
+        // Create Room
+        document.getElementById('createRoom').addEventListener('click', () => {
+            const userName = document.getElementById('userName').value.trim();
+
+            if (!userName) {
+                alert('Please enter your name');
+                return;
+            }
+
+            const roomCode = generateRoomCode();
+            showStatus('Creating virtual browser room...');
+
+            setTimeout(() => {
+                window.location.href = `/room/${roomCode}?userName=${encodeURIComponent(userName)}&isCreator=true`;
+            }, 1000);
+        });
+
+        // Join Room
+        document.getElementById('joinRoom').addEventListener('click', async () => {
+            const userName = document.getElementById('userName').value.trim();
+            const roomCode = document.getElementById('roomCode').value.trim().toUpperCase();
+
+            if (!userName) {
+                alert('Please enter your name');
+                return;
+            }
+            if (!roomCode || roomCode.length !== 6) {
+                alert('Please enter a valid 6-digit room code');
+                return;
+            }
+
+            showStatus('Checking room...');
+
+            try {
+                const response = await fetch(`/api/room/${roomCode}`);
+                
+                if (response.ok) {
+                    showStatus('Room found! Joining...');
+                    setTimeout(() => {
+                        window.location.href = `/room/${roomCode}?userName=${encodeURIComponent(userName)}&isCreator=false`;
+                    }, 500);
+                } else {
+                    showStatus('Room not found. Please check the room code.', true);
+                    setTimeout(hideStatus, 3000);
+                }
+            } catch (error) {
+                showStatus('Error checking room. Please try again.', true);
+                setTimeout(hideStatus, 3000);
+            }
+        });
+
+        // Auto-format room code
+        document.getElementById('roomCode').addEventListener('input', (e) => {
+            e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        });
+
+        // Enter key support
+        document.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const roomCode = document.getElementById('roomCode').value.trim();
+                
+                if (roomCode) {
+                    document.getElementById('joinRoom').click();
+                } else {
+                    document.getElementById('createRoom').click();
+                }
+            }
+        });
+    </script>
+</body>
+</html>

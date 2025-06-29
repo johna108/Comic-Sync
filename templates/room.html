@@ -3,200 +3,141 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Virtual Browser - Room {{ room_code }}</title>
+    <title>Full Virtual Browser - Room {{ room_code }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
     <style>
-        /* Custom styles for comic mode */
-        .comic-mode {
-            max-width: 800px !important;
-            margin: 0 auto !important;
+        .perf-indicator {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 11px;
+            z-index: 1000;
         }
         
-        .comic-mode .browser-container {
-            aspect-ratio: 9/16 !important; /* Tall aspect ratio for webtoons */
-            max-height: 80vh !important;
+        .keyboard-overlay {
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            z-index: 1000;
+            display: none;
         }
         
-        .comic-mode .chat-panel {
-            max-width: 300px !important;
+        .browser-screenshot {
+            cursor: crosshair;
         }
         
-        /* Ensure comic mode works on all screen sizes */
-        @media (max-width: 1200px) {
-            .comic-mode {
-                max-width: 90% !important;
-            }
-            
-            .comic-mode .chat-panel {
-                max-width: 250px !important;
-            }
-        }
-        
-        @media (max-width: 768px) {
-            .comic-mode {
-                max-width: 100% !important;
-                flex-direction: column !important;
-            }
-            
-            .comic-mode .browser-container {
-                aspect-ratio: 9/16 !important;
-                height: 60vh !important;
-                max-height: none !important;
-            }
-            
-            .comic-mode .chat-panel {
-                max-width: 100% !important;
-                height: 40vh !important;
-            }
-        }
-        
-        /* Mobile optimizations */
-        @media (max-width: 768px) {
-            .mobile-stack {
-                flex-direction: column;
-            }
-            
-            .mobile-full-height {
-                height: 50vh;
-            }
-            
-            .mobile-chat-height {
-                height: 50vh;
-            }
-        }
-        
-        /* Tablet optimizations */
-        @media (min-width: 769px) and (max-width: 1024px) {
-            .tablet-layout {
-                flex-direction: row;
-            }
-        }
-        
-        /* Desktop optimizations */
-        @media (min-width: 1025px) {
-            .desktop-layout {
-                flex-direction: row;
-            }
-        }
-        
-        /* Hide scrollbars but keep functionality */
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 4px;
-        }
-        
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: #f1f1f1;
-        }
-        
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #c1c1c1;
-            border-radius: 2px;
-        }
-        
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: #a1a1a1;
-        }
-        
-        /* Fix for browser view in comic mode */
-        .browser-view-wrapper {
-            display: flex;
-            flex-direction: column;
-            min-height: 0;
-            flex: 1;
+        .browser-screenshot:focus {
+            outline: 2px solid #3B82F6;
+            outline-offset: 2px;
         }
     </style>
 </head>
 <body class="bg-gray-100 overflow-hidden">
-    <div id="mainContainer" class="min-h-screen flex flex-col lg:flex-row mobile-stack tablet-layout desktop-layout">
+    <!-- Performance Indicator -->
+    <div id="perfIndicator" class="perf-indicator">
+        FPS: <span id="fpsDisplay">0</span> | 
+        Video: <span id="videoDisplay">No</span> | 
+        Focus: <span id="focusDisplay">None</span>
+    </div>
+    
+    <!-- Keyboard Overlay -->
+    <div id="keyboardOverlay" class="keyboard-overlay">
+        <div class="text-center text-sm">
+            <div>🎯 Browser Focused - Type directly!</div>
+            <div class="mt-1 text-xs opacity-75">
+                Ctrl+C/V: Copy/Paste | Tab: Navigate | Enter: Submit | Esc: Unfocus
+            </div>
+        </div>
+    </div>
+
+    <div id="mainContainer" class="min-h-screen flex flex-col lg:flex-row">
         <!-- Virtual Browser Panel -->
-        <div class="browser-view-wrapper flex-1">
+        <div class="flex-1 flex flex-col">
             <!-- Header -->
-            <div class="bg-white shadow-sm border-b p-2 sm:p-4 flex items-center justify-between flex-shrink-0">
-                <div class="flex items-center gap-2 sm:gap-4 overflow-x-auto">
-                    <h1 class="text-sm sm:text-lg font-bold text-gray-800 whitespace-nowrap">Virtual Browser</h1>
-                    <span class="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded font-mono whitespace-nowrap">{{ room_code }}</span>
-                    <span id="userCount" class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded whitespace-nowrap">👥 0</span>
-                    <span id="connectionStatus" class="px-2 py-1 text-xs rounded flex items-center gap-1 whitespace-nowrap">
-                        <div id="statusDot" class="w-2 h-2 rounded-full bg-yellow-500"></div>
+            <div class="bg-white shadow-sm border-b p-4 flex items-center justify-between flex-shrink-0">
+                <div class="flex items-center gap-4">
+                    <h1 class="text-lg font-bold text-gray-800">Full Virtual Browser</h1>
+                    <span class="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded font-mono">{{ room_code }}</span>
+                    <span id="userCount" class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">👥 0</span>
+                    <span id="connectionStatus" class="px-2 py-1 text-xs rounded flex items-center gap-1">
+                        <div id="statusDot" class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>
                         <span id="statusText">connecting</span>
                     </span>
-                    <span id="latencyDisplay" class="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded whitespace-nowrap">⚡ 0ms</span>
                 </div>
-                <div class="flex items-center gap-1 sm:gap-2">
-                    <button id="comicModeBtn" class="px-2 sm:px-3 py-1 border border-purple-300 text-purple-600 rounded text-xs sm:text-sm hover:bg-purple-50 whitespace-nowrap">
-                        📚 Comic
-                    </button>
-                    <button id="shareBtn" class="px-2 sm:px-3 py-1 border border-green-300 text-green-600 rounded text-xs sm:text-sm hover:bg-green-50 whitespace-nowrap">
+                <div class="flex items-center gap-2">
+                    <button id="shareBtn" class="px-3 py-1 border border-blue-300 text-blue-600 rounded text-sm hover:bg-blue-50">
                         Share
                     </button>
-                    <button id="leaveBtn" class="px-2 sm:px-3 py-1 border border-red-300 text-red-600 rounded text-xs sm:text-sm hover:bg-red-50 whitespace-nowrap">
+                    <button id="leaveBtn" class="px-3 py-1 border border-red-300 text-red-600 rounded text-sm hover:bg-red-50">
                         Leave
                     </button>
                 </div>
             </div>
 
-            <!-- URL Bar -->
-            <div class="bg-gray-50 border-b p-2 sm:p-3 flex-shrink-0">
-                <div class="flex items-center gap-1 sm:gap-2">
-                    <button id="backBtn" class="p-1 sm:p-2 text-gray-600 hover:bg-gray-200 rounded text-sm sm:text-base" title="Back">
-                        ←
-                    </button>
-                    <button id="forwardBtn" class="p-1 sm:p-2 text-gray-600 hover:bg-gray-200 rounded text-sm sm:text-base" title="Forward">
-                        →
-                    </button>
-                    <button id="refreshBtn" class="p-1 sm:p-2 text-gray-600 hover:bg-gray-200 rounded text-sm sm:text-base" title="Refresh">
-                        ↻
-                    </button>
-                    <div class="flex-1 flex items-center bg-white border border-gray-300 rounded-md min-w-0">
-                        <span class="px-2 sm:px-3 py-1 sm:py-2 text-gray-500 text-xs sm:text-sm">🔒</span>
+            <!-- Browser Controls -->
+            <div class="bg-gray-50 border-b p-3 flex-shrink-0">
+                <!-- Navigation Bar -->
+                <div class="flex items-center gap-2 mb-2">
+                    <button id="backBtn" class="p-2 text-gray-600 hover:bg-gray-200 rounded disabled:opacity-50" title="Back">←</button>
+                    <button id="forwardBtn" class="p-2 text-gray-600 hover:bg-gray-200 rounded disabled:opacity-50" title="Forward">→</button>
+                    <button id="refreshBtn" class="p-2 text-gray-600 hover:bg-gray-200 rounded" title="Refresh">↻</button>
+                    <div class="flex-1 flex items-center bg-white border border-gray-300 rounded-md">
+                        <span class="px-3 py-2 text-gray-500 text-sm">🔒</span>
                         <input 
                             type="url" 
                             id="urlBar" 
                             placeholder="Enter URL..."
-                            class="flex-1 px-1 sm:px-2 py-1 sm:py-2 border-0 focus:outline-none text-xs sm:text-sm min-w-0"
+                            class="flex-1 px-2 py-2 border-0 focus:outline-none text-sm"
                             value="https://www.google.com"
                         />
-                        <button id="goBtn" class="px-2 sm:px-4 py-1 sm:py-2 bg-blue-600 text-white text-xs sm:text-sm hover:bg-blue-700 rounded-r-md whitespace-nowrap">
+                        <button id="goBtn" class="px-4 py-2 bg-blue-600 text-white text-sm hover:bg-blue-700 rounded-r-md">
                             Go
                         </button>
                     </div>
                 </div>
                 
-                <!-- Quick Navigation - Responsive -->
-                <div class="mt-2 flex gap-1 sm:gap-2 text-xs overflow-x-auto pb-1">
-                    <button class="quick-nav px-2 py-1 bg-white border rounded hover:bg-gray-50 whitespace-nowrap" data-url="https://webtoons.com">
-                        📚 Webtoons
+                <!-- Quick Actions -->
+                <div class="flex gap-2 text-xs">
+                    <button class="quick-nav px-2 py-1 bg-white border rounded hover:bg-gray-50" data-url="https://www.webtoon.com">
+                        🔍 Webtoon
                     </button>
-                    <button class="quick-nav px-2 py-1 bg-white border rounded hover:bg-gray-50 whitespace-nowrap" data-url="https://mangadex.org">
-                        📖 MangaDex
-                    </button>
-                    <button class="quick-nav px-2 py-1 bg-white border rounded hover:bg-gray-50 whitespace-nowrap" data-url="https://www.youtube.com">
+                    <button class="quick-nav px-2 py-1 bg-white border rounded hover:bg-gray-50" data-url="https://www.youtube.com">
                         📺 YouTube
                     </button>
-                    <button class="quick-nav px-2 py-1 bg-white border rounded hover:bg-gray-50 whitespace-nowrap" data-url="https://reddit.com">
-                        💬 Reddit
+                    <button class="quick-nav px-2 py-1 bg-white border rounded hover:bg-gray-50" data-url="https://mangapark.net">
+                        💻 MangaPark
                     </button>
-                    <button class="quick-nav px-2 py-1 bg-white border rounded hover:bg-gray-50 whitespace-nowrap" data-url="https://twitter.com">
-                        🐦 Twitter
+                    <button class="quick-nav px-2 py-1 bg-white border rounded hover:bg-gray-50" data-url="https://mangadex.org/">
+                        📚 MangaDex
                     </button>
                 </div>
             </div>
 
             <!-- Browser Status -->
-            <div id="browserStatus" class="bg-blue-500 text-white p-2 sm:p-3 text-center flex-shrink-0">
+            <div id="browserStatus" class="bg-blue-500 text-white p-3 text-center flex-shrink-0">
                 <div class="flex items-center justify-center gap-2">
-                    <div class="animate-spin rounded-full h-3 w-3 sm:h-4 sm:w-4 border-b-2 border-white"></div>
-                    <span id="browserStatusText" class="text-xs sm:text-sm">Starting virtual browser...</span>
+                    <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span id="browserStatusText" class="text-sm">Starting FULL Playwright browser...</span>
                 </div>
             </div>
 
             <!-- Virtual Browser View -->
-            <div id="browserViewContainer" class="flex-1 relative bg-black min-h-0 mobile-full-height browser-container">
+            <div id="browserViewContainer" class="flex-1 relative bg-black">
                 <div id="loadingIndicator" class="absolute inset-0 flex items-center justify-center z-10">
                     <div class="text-center text-white">
-                        <div class="animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-b-2 border-white mx-auto mb-2"></div>
-                        <p class="text-xs sm:text-sm">Loading virtual browser...</p>
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
+                        <p class="text-sm">Loading full virtual browser...</p>
                     </div>
                 </div>
 
@@ -204,37 +145,78 @@
                 <div id="screenshotContainer" class="w-full h-full relative">
                     <img 
                         id="browserScreenshot" 
-                        class="max-w-none cursor-pointer w-full h-full object-contain"
+                        class="browser-screenshot w-full h-full object-contain"
                         style="display: none;"
                         alt="Virtual Browser View"
+                        tabindex="0"
                     />
-                    
-                    <!-- Click Overlay -->
-                    <div id="clickOverlay" class="absolute inset-0 cursor-pointer" style="display: none;"></div>
                 </div>
             </div>
         </div>
 
-        <!-- Chat Panel - Responsive -->
-        <div id="chatPanel" class="chat-panel w-full lg:w-80 xl:w-96 bg-white border-l flex flex-col mobile-chat-height lg:h-screen">
-            <!-- Chat Header -->
-            <div class="p-3 sm:p-4 border-b flex-shrink-0">
-                <div class="flex items-center justify-between">
-                    <h2 class="text-sm sm:text-lg font-semibold">Chat & Controls</h2>
-                    <button id="toggleChatBtn" class="lg:hidden p-1 text-gray-600 hover:bg-gray-200 rounded">
-                        <span id="toggleChatIcon">▼</span>
-                    </button>
-                </div>
-                <div class="text-xs sm:text-sm text-gray-600 mt-1 sm:mt-2">
+        <!-- Control Panel -->
+        <div id="controlPanel" class="w-full lg:w-80 bg-white border-l flex flex-col lg:h-screen">
+            <!-- Control Header -->
+            <div class="p-4 border-b flex-shrink-0">
+                <h2 class="text-lg font-semibold">Browser Controls</h2>
+                <div class="text-sm text-gray-600 mt-2">
                     <span id="onlineCount">0</span> users online
                 </div>
             </div>
 
-            <!-- Chat Content -->
-            <div id="chatContent" class="flex-1 flex flex-col min-h-0">
-                <!-- Browser Controls -->
-                <div class="p-3 sm:p-4 border-b bg-gray-50 flex-shrink-0">
-                    <h3 class="font-medium text-gray-800 mb-2 sm:mb-3 text-sm sm:text-base">Browser Controls</h3>
+            <!-- Control Content -->
+            <div class="flex-1 flex flex-col min-h-0 overflow-y-auto">
+                <!-- Keyboard Controls -->
+                <div class="p-4 border-b bg-gray-50 flex-shrink-0">
+                    <h3 class="font-medium text-gray-800 mb-3">⌨️ Keyboard</h3>
+                    <div class="space-y-2">
+                        <div class="flex gap-2">
+                            <input 
+                                type="text" 
+                                id="typeInput" 
+                                placeholder="Type text..."
+                                class="flex-1 px-2 py-1 border border-gray-300 rounded text-xs"
+                            />
+                            <button id="typeBtn" class="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700">
+                                Type
+                            </button>
+                        </div>
+                        
+                        <!-- Special Keys -->
+                        <div class="grid grid-cols-3 gap-1 text-xs">
+                            <button class="key-btn px-2 py-1 bg-gray-200 rounded hover:bg-gray-300" data-key="Enter">Enter</button>
+                            <button class="key-btn px-2 py-1 bg-gray-200 rounded hover:bg-gray-300" data-key="Tab">Tab</button>
+                            <button class="key-btn px-2 py-1 bg-gray-200 rounded hover:bg-gray-300" data-key="Escape">Esc</button>
+                            <button class="key-btn px-2 py-1 bg-gray-200 rounded hover:bg-gray-300" data-key="Backspace">⌫</button>
+                            <button class="key-btn px-2 py-1 bg-gray-200 rounded hover:bg-gray-300" data-key="Delete">Del</button>
+                            <button class="key-btn px-2 py-1 bg-gray-200 rounded hover:bg-gray-300" data-key="Space">Space</button>
+                        </div>
+                        
+                        <!-- Arrow Keys -->
+                        <div class="grid grid-cols-3 gap-1 text-xs">
+                            <div></div>
+                            <button class="key-btn px-2 py-1 bg-gray-200 rounded hover:bg-gray-300" data-key="ArrowUp">↑</button>
+                            <div></div>
+                            <button class="key-btn px-2 py-1 bg-gray-200 rounded hover:bg-gray-300" data-key="ArrowLeft">←</button>
+                            <button class="key-btn px-2 py-1 bg-gray-200 rounded hover:bg-gray-300" data-key="ArrowDown">↓</button>
+                            <button class="key-btn px-2 py-1 bg-gray-200 rounded hover:bg-gray-300" data-key="ArrowRight">→</button>
+                        </div>
+                        
+                        <!-- Keyboard Shortcuts -->
+                        <div class="grid grid-cols-2 gap-1 text-xs">
+                            <button class="combo-btn px-2 py-1 bg-blue-200 rounded hover:bg-blue-300" data-keys='["Control", "c"]'>Ctrl+C</button>
+                            <button class="combo-btn px-2 py-1 bg-blue-200 rounded hover:bg-blue-300" data-keys='["Control", "v"]'>Ctrl+V</button>
+                            <button class="combo-btn px-2 py-1 bg-blue-200 rounded hover:bg-blue-300" data-keys='["Control", "a"]'>Ctrl+A</button>
+                            <button class="combo-btn px-2 py-1 bg-blue-200 rounded hover:bg-blue-300" data-keys='["Control", "z"]'>Ctrl+Z</button>
+                            <button class="combo-btn px-2 py-1 bg-blue-200 rounded hover:bg-blue-300" data-keys='["Control", "f"]'>Ctrl+F</button>
+                            <button class="combo-btn px-2 py-1 bg-blue-200 rounded hover:bg-blue-300" data-keys='["Control", "r"]'>Ctrl+R</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scroll Controls -->
+                <div class="p-4 border-b bg-gray-50 flex-shrink-0">
+                    <h3 class="font-medium text-gray-800 mb-3">📜 Scroll</h3>
                     <div class="space-y-2">
                         <div class="flex gap-2">
                             <input 
@@ -251,39 +233,59 @@
                                 class="flex-1 px-2 py-1 border border-gray-300 rounded text-xs"
                                 value="0"
                             />
-                            <button id="scrollBtn" class="px-2 sm:px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 whitespace-nowrap">
-                                Scroll
+                            <button id="scrollBtn" class="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">
+                                Go
                             </button>
                         </div>
-                        <div class="text-xs text-green-600 font-medium text-center">
-                            ⚡ Ultra-low latency mode enabled
-                        </div>
-                        <div class="text-xs text-blue-600 font-medium text-center">
-                            🌐 Navigate anywhere with the URL bar above
-                        </div>
-                        <div class="text-xs text-gray-500 text-center">
-                            10 FPS updates • Optimized for speed
+                        
+                        <!-- Quick Scroll -->
+                        <div class="grid grid-cols-3 gap-1 text-xs">
+                            <button id="scrollTop" class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">Top</button>
+                            <button id="scrollUp" class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">↑ Up</button>
+                            <button id="scrollDown" class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">↓ Down</button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Messages -->
-                <div class="flex-1 overflow-y-auto p-3 sm:p-4 custom-scrollbar min-h-0">
-                    <div id="messages" class="space-y-2 sm:space-y-3"></div>
+                <!-- Page Info -->
+                <div class="p-4 border-b bg-gray-50 flex-shrink-0">
+                    <h3 class="font-medium text-gray-800 mb-3">📄 Page Info</h3>
+                    <div class="space-y-2 text-xs">
+                        <div>
+                            <span class="font-medium">Title:</span>
+                            <div id="pageTitle" class="text-gray-600 break-words">Loading...</div>
+                        </div>
+                        <div>
+                            <span class="font-medium">Current URL:</span>
+                            <div id="currentUrl" class="text-gray-600 break-words">Loading...</div>
+                        </div>
+                        <div>
+                            <span class="font-medium">Scroll:</span>
+                            <span id="scrollInfo" class="text-gray-600">0, 0</span>
+                        </div>
+                        <div>
+                            <span class="font-medium">Focus:</span>
+                            <span id="focusInfo" class="text-gray-600">None</span>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Message Input -->
-                <div class="p-3 sm:p-4 border-t flex-shrink-0">
+                <!-- Chat Messages -->
+                <div class="flex-1 p-4">
+                    <h3 class="font-medium text-gray-800 mb-3">💬 Chat</h3>
+                    <div id="messages" class="space-y-2 mb-4 max-h-40 overflow-y-auto"></div>
+                    
+                    <!-- Message Input -->
                     <div class="flex gap-2">
                         <input 
                             type="text" 
                             id="messageInput" 
                             placeholder="Type a message..."
-                            class="flex-1 px-2 sm:px-3 py-1 sm:py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-xs sm:text-sm min-w-0"
+                            class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                         />
                         <button 
                             id="sendBtn"
-                            class="px-3 sm:px-4 py-1 sm:py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-xs sm:text-sm whitespace-nowrap"
+                            class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm"
                         >
                             Send
                         </button>
@@ -295,17 +297,17 @@
 
     <!-- Share Modal -->
     <div id="shareModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden z-50">
-        <div class="bg-white rounded-lg p-4 sm:p-6 max-w-md w-full mx-4">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full">
             <h3 class="text-lg font-semibold mb-4">Share Room</h3>
             <p class="text-sm text-gray-600 mb-4">Share this room code:</p>
             <div class="bg-gray-100 p-3 rounded-lg text-center mb-4">
-                <div class="text-xl sm:text-2xl font-bold font-mono text-purple-600">{{ room_code }}</div>
+                <div class="text-2xl font-bold font-mono text-purple-600">{{ room_code }}</div>
             </div>
             <div class="flex gap-2">
-                <button id="copyRoomCode" class="flex-1 bg-purple-600 text-white py-2 px-4 rounded hover:bg-purple-700 text-sm">
+                <button id="copyRoomCode" class="flex-1 bg-purple-600 text-white py-2 px-4 rounded hover:bg-purple-700">
                     Copy Code
                 </button>
-                <button id="closeShareModal" class="flex-1 border border-gray-300 py-2 px-4 rounded hover:bg-gray-50 text-sm">
+                <button id="closeShareModal" class="flex-1 border border-gray-300 py-2 px-4 rounded hover:bg-gray-50">
                     Close
                 </button>
             </div>
@@ -313,638 +315,440 @@
     </div>
 
     <script>
-    // Get parameters
-    const urlParams = new URLSearchParams(window.location.search);
-    const roomCode = '{{ room_code }}';
-    const userName = urlParams.get('userName');
-    const isCreator = urlParams.get('isCreator') === 'true';
+        // Full Virtual Browser Client with Fixed URL Bar
+        const roomCode = '{{ room_code }}';
+        const urlParams = new URLSearchParams(window.location.search);
+        const userName = urlParams.get('userName');
+        const isCreator = urlParams.get('isCreator') === 'true';
 
-    if (!userName) {
-        alert('Please enter your name first');
-        window.location.href = '/';
-    }
-
-    // Initialize Socket.IO with optimized settings
-    const socket = io({
-        transports: ['websocket'],  // Force WebSocket for lowest latency
-        upgrade: false,
-        rememberUpgrade: false,
-        timeout: 5000,
-        forceNew: true
-    });
-
-    let connectionStatus = 'connecting';
-    let isTypingInChat = false;
-    let isTypingInUrlBar = false;
-    let virtualMouse = null;
-    let lastActionTime = 0;
-    let latencyTimes = [];
-    let isComicMode = false;
-    let isChatCollapsed = false;
-
-    // DOM elements
-    const userCount = document.getElementById('userCount');
-    const onlineCount = document.getElementById('onlineCount');
-    const statusDot = document.getElementById('statusDot');
-    const statusText = document.getElementById('statusText');
-    const browserStatus = document.getElementById('browserStatus');
-    const browserStatusText = document.getElementById('browserStatusText');
-    const loadingIndicator = document.getElementById('loadingIndicator');
-    const browserScreenshot = document.getElementById('browserScreenshot');
-    const clickOverlay = document.getElementById('clickOverlay');
-    const messages = document.getElementById('messages');
-    const messageInput = document.getElementById('messageInput');
-    const sendBtn = document.getElementById('sendBtn');
-    const scrollBtn = document.getElementById('scrollBtn');
-    const scrollX = document.getElementById('scrollX');
-    const scrollY = document.getElementById('scrollY');
-    const shareBtn = document.getElementById('shareBtn');
-    const shareModal = document.getElementById('shareModal');
-    const leaveBtn = document.getElementById('leaveBtn');
-    const latencyDisplay = document.getElementById('latencyDisplay');
-    
-    // URL bar elements
-    const urlBar = document.getElementById('urlBar');
-    const goBtn = document.getElementById('goBtn');
-    const backBtn = document.getElementById('backBtn');
-    const forwardBtn = document.getElementById('forwardBtn');
-    const refreshBtn = document.getElementById('refreshBtn');
-    
-    // New responsive elements
-    const mainContainer = document.getElementById('mainContainer');
-    const browserViewContainer = document.getElementById('browserViewContainer');
-    const chatPanel = document.getElementById('chatPanel');
-    const chatContent = document.getElementById('chatContent');
-    const comicModeBtn = document.getElementById('comicModeBtn');
-    const toggleChatBtn = document.getElementById('toggleChatBtn');
-    const toggleChatIcon = document.getElementById('toggleChatIcon');
-
-    // Responsive functions
-    function toggleComicMode() {
-        isComicMode = !isComicMode;
-        
-        if (isComicMode) {
-            // Apply comic mode styles
-            mainContainer.classList.add('comic-mode');
-            comicModeBtn.textContent = '🖥️ Normal';
-            comicModeBtn.classList.remove('border-purple-300', 'text-purple-600');
-            comicModeBtn.classList.add('border-green-300', 'text-green-600', 'bg-green-50');
-            
-            // Force layout recalculation
-            setTimeout(() => {
-                window.dispatchEvent(new Event('resize'));
-            }, 100);
-            
-            addSystemMessage('📚 Comic mode enabled - optimized for webtoon reading');
-        } else {
-            // Remove comic mode styles
-            mainContainer.classList.remove('comic-mode');
-            comicModeBtn.textContent = '📚 Comic';
-            comicModeBtn.classList.remove('border-green-300', 'text-green-600', 'bg-green-50');
-            comicModeBtn.classList.add('border-purple-300', 'text-purple-600');
-            
-            // Force layout recalculation
-            setTimeout(() => {
-                window.dispatchEvent(new Event('resize'));
-            }, 100);
-            
-            addSystemMessage('🖥️ Normal mode enabled');
+        if (!userName) {
+            alert('Please enter your name first');
+            window.location.href = '/';
         }
-    }
 
-    function toggleChatPanel() {
-        isChatCollapsed = !isChatCollapsed;
-        
-        if (isChatCollapsed) {
-            chatContent.style.display = 'none';
-            toggleChatIcon.textContent = '▲';
-        } else {
-            chatContent.style.display = 'flex';
-            toggleChatIcon.textContent = '▼';
-        }
-    }
+        // Initialize Socket.IO
+        const socket = io({
+            transports: ['websocket'],
+            upgrade: false,
+            rememberUpgrade: false,
+            timeout: 5000,
+            forceNew: true
+        });
 
-    // Detect device type and adjust layout
-    function detectDeviceAndAdjust() {
-        const isMobile = window.innerWidth < 768;
-        const isTablet = window.innerWidth >= 768 && window.innerWidth < 1024;
-        const isDesktop = window.innerWidth >= 1024;
+        // Performance tracking
+        let frameCount = 0;
+        let lastFpsTime = Date.now();
+        let browserFocused = false;
+        let userIsTypingUrl = false; // Track if user is typing in URL bar
 
-        // Adjust for mobile
-        if (isMobile) {
-            // Auto-collapse chat on mobile for more screen space
-            if (!isChatCollapsed) {
-                toggleChatPanel();
-            }
-        } else {
-            // Expand chat on larger screens
-            if (isChatCollapsed) {
-                toggleChatPanel();
+        // DOM elements
+        const browserScreenshot = document.getElementById('browserScreenshot');
+        const fpsDisplay = document.getElementById('fpsDisplay');
+        const videoDisplay = document.getElementById('videoDisplay');
+        const focusDisplay = document.getElementById('focusDisplay');
+        const keyboardOverlay = document.getElementById('keyboardOverlay');
+        const scrollX = document.getElementById('scrollX');
+        const scrollY = document.getElementById('scrollY');
+        const typeInput = document.getElementById('typeInput');
+        const urlBar = document.getElementById('urlBar');
+
+        // Performance update function
+        function updatePerformanceDisplay() {
+            frameCount++;
+            const now = Date.now();
+            
+            if (now - lastFpsTime >= 1000) {
+                const fps = Math.round(frameCount * 1000 / (now - lastFpsTime));
+                fpsDisplay.textContent = fps;
+                frameCount = 0;
+                lastFpsTime = now;
             }
         }
-    }
 
-    // Handle window resize
-    window.addEventListener('resize', () => {
-        detectDeviceAndAdjust();
-        
-        // Recalculate virtual mouse position if needed
-        if (virtualMouse && virtualMouse.style.display !== 'none') {
-            // Hide and show again to recalculate position
-            virtualMouse.style.display = 'none';
-        }
-    });
-
-    // Initialize responsive layout
-    detectDeviceAndAdjust();
-
-    // Latency tracking
-    function updateLatency(timestamp) {
-        const now = Date.now();
-        const latency = now - (timestamp * 1000);
-        latencyTimes.push(latency);
-        
-        // Keep only last 10 measurements
-        if (latencyTimes.length > 10) {
-            latencyTimes.shift();
-        }
-        
-        const avgLatency = latencyTimes.reduce((a, b) => a + b, 0) / latencyTimes.length;
-        latencyDisplay.textContent = `⚡ ${Math.round(avgLatency)}ms`;
-        
-        // Color code latency
-        if (avgLatency < 50) {
-            latencyDisplay.className = 'px-2 py-1 bg-green-100 text-green-700 text-xs rounded whitespace-nowrap';
-        } else if (avgLatency < 100) {
-            latencyDisplay.className = 'px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded whitespace-nowrap';
-        } else {
-            latencyDisplay.className = 'px-2 py-1 bg-red-100 text-red-700 text-xs rounded whitespace-nowrap';
-        }
-    }
-
-    // Create virtual mouse cursor
-    function createVirtualMouse() {
-        virtualMouse = document.createElement('div');
-        virtualMouse.style.cssText = `
-            position: absolute;
-            width: 12px;
-            height: 12px;
-            background: rgba(255, 0, 0, 0.9);
-            border: 1px solid white;
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: 1000;
-            display: none;
-            box-shadow: 0 0 8px rgba(0,0,0,0.6);
-            transition: none;
-        `;
-        document.getElementById('screenshotContainer').appendChild(virtualMouse);
-    }
-
-    // Update virtual mouse position
-    function updateVirtualMouse(x, y) {
-        if (virtualMouse) {
-            const rect = browserScreenshot.getBoundingClientRect();
-            const containerRect = document.getElementById('screenshotContainer').getBoundingClientRect();
-            
-            // Scale coordinates to match screenshot display
-            const scaleX = rect.width / 1280;
-            const scaleY = rect.height / 720;
-            
-            const displayX = (x * scaleX) + (rect.left - containerRect.left);
-            const displayY = (y * scaleY) + (rect.top - containerRect.top);
-            
-            virtualMouse.style.left = displayX - 6 + 'px';
-            virtualMouse.style.top = displayY - 6 + 'px';
-            virtualMouse.style.display = 'block';
-        }
-    }
-
-    // URL validation
-    function isValidUrl(url) {
-        try {
-            new URL(url);
-            return true;
-        } catch {
-            return false;
-        }
-    }
-
-    function formatUrl(url) {
-        if (!url.startsWith('http://') && !url.startsWith('https://')) {
-            return 'https://' + url;
-        }
-        return url;
-    }
-
-    // Navigate to URL
-    function navigateToUrl(url) {
-        const formattedUrl = formatUrl(url);
-        
-        if (!isValidUrl(formattedUrl)) {
-            alert('Please enter a valid URL');
-            return;
-        }
-
-        urlBar.value = formattedUrl;
-        
-        socket.emit('browser-navigate', {
-            roomCode,
-            url: formattedUrl,
-            userName
+        // URL Bar event handlers
+        urlBar.addEventListener('focus', () => {
+            userIsTypingUrl = true;
+            socket.emit('url-typing-start', { roomCode });
         });
-    }
 
-    // Socket events
-    socket.on('connect', () => {
-        console.log('Connected to server');
-        updateConnectionStatus('connected');
-        
-        socket.emit('join-room', { 
-            roomCode, 
-            userName, 
-            isCreator 
+        urlBar.addEventListener('blur', () => {
+            userIsTypingUrl = false;
+            socket.emit('url-typing-stop', { roomCode });
         });
-    });
 
-    socket.on('disconnect', () => {
-        updateConnectionStatus('disconnected');
-    });
+        urlBar.addEventListener('input', () => {
+            // User is actively typing, don't update from browser
+            userIsTypingUrl = true;
+        });
 
-    socket.on('room-users', (users) => {
-        userCount.textContent = `👥 ${users.length}`;
-        onlineCount.textContent = users.length;
-    });
+        // Socket events
+        socket.on('connect', () => {
+            console.log('Connected to FULL browser server');
+            updateConnectionStatus('connected');
+            
+            socket.emit('join-room', { 
+                roomCode, 
+                userName, 
+                isCreator 
+            });
+        });
 
-    socket.on('room-not-found', () => {
-        alert('Room not found');
-        window.location.href = '/';
-    });
-
-    socket.on('browser-ready', () => {
-        browserStatusText.textContent = 'Virtual browser ready! Navigate anywhere with the URL bar.';
-        browserStatus.className = 'bg-green-500 text-white p-2 sm:p-3 text-center flex-shrink-0';
-        createVirtualMouse();
-    });
-
-    socket.on('browser-error', (data) => {
-        browserStatusText.textContent = `Error: ${data.error}`;
-        browserStatus.className = 'bg-red-500 text-white p-2 sm:p-3 text-center flex-shrink-0';
-        addSystemMessage(`❌ Browser error: ${data.error}`);
-    });
-
-    socket.on('screenshot-update', (data) => {
-        // Update latency tracking
-        updateLatency(data.timestamp);
-        
-        browserScreenshot.src = 'data:image/jpeg;base64,' + data.screenshot;
-        browserScreenshot.style.display = 'block';
-        clickOverlay.style.display = 'block';
-        loadingIndicator.style.display = 'none';
-        
-        // Update scroll inputs
-        const pos = data.scrollPosition;
-        scrollX.value = pos.x;
-        scrollY.value = pos.y;
-    });
-
-    socket.on('url-changed', (data) => {
-        urlBar.value = data.url;
-        addSystemMessage(`🌐 Page navigated to ${data.url}`);
-    });
-
-    socket.on('chat-message', (message) => {
-        addMessage(message);
-    });
-
-    socket.on('user-joined', (data) => {
-        addSystemMessage(`${data.userName} joined the session`);
-    });
-
-    socket.on('user-left', (data) => {
-        addSystemMessage(`${data.userName} left the session`);
-    });
-
-    socket.on('mouse-position', (data) => {
-        updateVirtualMouse(data.x, data.y);
-        
-        // Hide cursor after 1 second of inactivity
-        clearTimeout(window.mouseCursorTimeout);
-        window.mouseCursorTimeout = setTimeout(() => {
-            if (virtualMouse) {
-                virtualMouse.style.display = 'none';
+        socket.on('screenshot-update', (data) => {
+            console.log('📸 Screenshot received');
+            
+            // Update screenshot
+            if (data.screenshot) {
+                browserScreenshot.src = `data:image/jpeg;base64,${data.screenshot}`;
+                browserScreenshot.style.display = 'block';
+                document.getElementById('loadingIndicator').style.display = 'none';
             }
-        }, 1000);
-    });
-
-    // Functions
-    function updateConnectionStatus(status) {
-        connectionStatus = status;
-        statusText.textContent = status;
-        
-        if (status === 'connected') {
-            statusDot.className = 'w-2 h-2 rounded-full bg-green-500';
-        } else if (status === 'connecting') {
-            statusDot.className = 'w-2 h-2 rounded-full bg-yellow-500 animate-pulse';
-        } else {
-            statusDot.className = 'w-2 h-2 rounded-full bg-red-500';
-        }
-    }
-
-    function addMessage(message) {
-        const messageEl = document.createElement('div');
-        messageEl.className = 'text-xs sm:text-sm';
-        
-        const isSystem = message.type === 'system' || message.userName === 'System';
-        const isOwn = message.userName === userName;
-        
-        messageEl.innerHTML = `
-            <div class="flex items-start gap-2">
-                <span class="font-medium text-xs ${isSystem ? 'text-gray-500' : isOwn ? 'text-blue-600' : 'text-gray-700'}">
-                    ${message.userName}:
-                </span>
-                <span class="text-xs flex-1 ${isSystem ? 'text-gray-500 italic' : 'text-gray-600'} break-words">
-                    ${message.message}
-                </span>
-            </div>
-            <div class="text-xs text-gray-400 ml-2">${new Date(message.timestamp).toLocaleTimeString()}</div>
-        `;
-        
-        messages.appendChild(messageEl);
-        messages.scrollTop = messages.scrollHeight;
-    }
-
-    function addSystemMessage(text) {
-        addMessage({
-            userName: 'System',
-            message: text,
-            timestamp: Date.now(),
-            type: 'system'
+            
+            // Update page info
+            if (data.pageInfo) {
+                const info = data.pageInfo;
+                
+                // Update scroll position
+                if (info.scroll) {
+                    scrollX.value = info.scroll.x;
+                    scrollY.value = info.scroll.y;
+                    document.getElementById('scrollInfo').textContent = `${info.scroll.x}, ${info.scroll.y}`;
+                }
+                
+                // Update page details (but don't override URL bar if user is typing)
+                document.getElementById('pageTitle').textContent = info.title || 'Unknown';
+                document.getElementById('currentUrl').textContent = info.url || 'Unknown';
+                
+                // Only update URL bar if user is NOT typing
+                if (!userIsTypingUrl && !urlBar.matches(':focus')) {
+                    urlBar.value = info.url || '';
+                }
+                
+                // Update focus info
+                if (info.focus) {
+                    const focusText = `${info.focus.tagName}${info.focus.type ? `[${info.focus.type}]` : ''}`;
+                    document.getElementById('focusInfo').textContent = focusText;
+                    focusDisplay.textContent = focusText;
+                } else {
+                    document.getElementById('focusInfo').textContent = 'None';
+                    focusDisplay.textContent = 'None';
+                }
+                
+                // Update video status
+                videoDisplay.textContent = info.media?.hasVideo ? 'Yes' : 'No';
+            }
+            
+            updatePerformanceDisplay();
         });
-    }
 
-    function sendMessage() {
-        const message = messageInput.value.trim();
-        if (!message) return;
+        socket.on('browser-ready', (data) => {
+            document.getElementById('browserStatus').className = 'bg-green-500 text-white p-3 text-center flex-shrink-0';
+            document.getElementById('browserStatusText').textContent = 'Full virtual browser ready! 🎭⌨️📜🖱️';
+            
+            console.log('Browser features:', data.features);
+        });
 
-        socket.emit('chat-message', {
-            roomCode,
-            message: {
-                userName,
-                message,
-                timestamp: Date.now()
+        socket.on('page-info-update', (data) => {
+            document.getElementById('backBtn').disabled = !data.canGoBack;
+            document.getElementById('forwardBtn').disabled = !data.canGoForward;
+            
+            // Only update URL bar if specified and user isn't typing
+            if (data.updateUrlBar && !userIsTypingUrl && !urlBar.matches(':focus')) {
+                urlBar.value = data.url || '';
             }
         });
 
-        messageInput.value = '';
-    }
-
-    // Optimized coordinate calculation
-    function getScaledCoordinates(e) {
-        const rect = browserScreenshot.getBoundingClientRect();
-        
-        // Get mouse position relative to the image
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        
-        // Get the natural image dimensions
-        const naturalWidth = 1280;  // Browser viewport width
-        const naturalHeight = 720;  // Browser viewport height
-        
-        // Get displayed dimensions
-        const displayWidth = rect.width;
-        const displayHeight = rect.height;
-        
-        // Calculate the actual displayed image area (accounting for object-fit: contain)
-        const imageAspectRatio = naturalWidth / naturalHeight;
-        const displayAspectRatio = displayWidth / displayHeight;
-        
-        let actualImageWidth, actualImageHeight, offsetX = 0, offsetY = 0;
-        
-        if (imageAspectRatio > displayAspectRatio) {
-            // Image is wider - letterboxed top/bottom
-            actualImageWidth = displayWidth;
-            actualImageHeight = displayWidth / imageAspectRatio;
-            offsetY = (displayHeight - actualImageHeight) / 2;
-        } else {
-            // Image is taller - letterboxed left/right
-            actualImageHeight = displayHeight;
-            actualImageWidth = displayHeight * imageAspectRatio;
-            offsetX = (displayWidth - actualImageWidth) / 2;
-        }
-        
-        // Adjust for letterboxing
-        const adjustedX = x - offsetX;
-        const adjustedY = y - offsetY;
-        
-        // Scale to browser coordinates
-        const scaleX = naturalWidth / actualImageWidth;
-        const scaleY = naturalHeight / actualImageHeight;
-        
-        const browserX = Math.round(adjustedX * scaleX);
-        const browserY = Math.round(adjustedY * scaleY);
-        
-        // Clamp to browser bounds
-        const clampedX = Math.max(0, Math.min(browserX, naturalWidth - 1));
-        const clampedY = Math.max(0, Math.min(browserY, naturalHeight - 1));
-        
-        return {
-            x: clampedX,
-            y: clampedY
-        };
-    }
-
-    // Throttle function for high-frequency events
-    function throttle(func, limit) {
-        let inThrottle;
-        return function() {
-            const args = arguments;
-            const context = this;
-            if (!inThrottle) {
-                func.apply(context, args);
-                inThrottle = true;
-                setTimeout(() => inThrottle = false, limit);
+        socket.on('url-changed', (data) => {
+            // Only update URL bar if user isn't typing
+            if (!userIsTypingUrl && !urlBar.matches(':focus')) {
+                urlBar.value = data.url || '';
             }
-        }
-    }
-
-    // Event listeners
-    sendBtn.addEventListener('click', sendMessage);
-    
-    messageInput.addEventListener('focus', () => {
-        isTypingInChat = true;
-    });
-    
-    messageInput.addEventListener('blur', () => {
-        isTypingInChat = false;
-    });
-    
-    messageInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') sendMessage();
-    });
-
-    // URL bar events
-    urlBar.addEventListener('focus', () => {
-        isTypingInUrlBar = true;
-    });
-    
-    urlBar.addEventListener('blur', () => {
-        isTypingInUrlBar = false;
-    });
-
-    urlBar.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            navigateToUrl(urlBar.value);
-        }
-    });
-
-    goBtn.addEventListener('click', () => {
-        navigateToUrl(urlBar.value);
-    });
-
-    // Browser navigation buttons
-    backBtn.addEventListener('click', () => {
-        socket.emit('browser-navigate-back', {
-            roomCode,
-            userName
         });
-    });
 
-    forwardBtn.addEventListener('click', () => {
-        socket.emit('browser-navigate-forward', {
-            roomCode,
-            userName
+        socket.on('browser-dialog', (data) => {
+            alert(`Browser ${data.type}: ${data.message}`);
         });
-    });
 
-    refreshBtn.addEventListener('click', () => {
-        socket.emit('browser-refresh', {
-            roomCode,
-            userName
+        socket.on('room-users', (roomUsers) => {
+            document.getElementById('userCount').textContent = `👥 ${roomUsers.length}`;
+            document.getElementById('onlineCount').textContent = roomUsers.length;
         });
-    });
 
-    // New responsive event listeners
-    comicModeBtn.addEventListener('click', toggleComicMode);
-    toggleChatBtn.addEventListener('click', toggleChatPanel);
-
-    // Quick navigation buttons
-    document.querySelectorAll('.quick-nav').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const url = btn.getAttribute('data-url');
-            navigateToUrl(url);
+        socket.on('chat-message', (message) => {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'text-sm p-2 bg-gray-100 rounded';
+            messageDiv.innerHTML = `
+                <div class="font-medium text-xs ${message.userName === userName ? 'text-blue-600' : 'text-gray-700'}">${message.userName}</div>
+                <div class="text-xs text-gray-600">${message.message}</div>
+            `;
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
         });
-    });
 
-    scrollBtn.addEventListener('click', () => {
-        const x = parseInt(scrollX.value) || 0;
-        const y = parseInt(scrollY.value) || 0;
-        
-        socket.emit('browser-scroll', {
-            roomCode,
-            x,
-            y,
-            userName
+        // Browser focus management
+        browserScreenshot.addEventListener('focus', () => {
+            browserFocused = true;
+            keyboardOverlay.style.display = 'block';
+            browserScreenshot.style.outline = '2px solid #3B82F6';
         });
-    });
 
-    // Optimized mouse events with throttling
-    const throttledMouseMove = throttle((e) => {
-        const coords = getScaledCoordinates(e);
-        updateVirtualMouse(coords.x, coords.y);
-        
-        // Send mouse position to other users
-        socket.emit('mouse-move', {
-            roomCode,
-            x: coords.x,
-            y: coords.y,
-            userName
+        browserScreenshot.addEventListener('blur', () => {
+            browserFocused = false;
+            keyboardOverlay.style.display = 'none';
+            browserScreenshot.style.outline = 'none';
         });
-    }, 16); // ~60 FPS
 
-    clickOverlay.addEventListener('mousemove', throttledMouseMove);
-
-    clickOverlay.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        const coords = getScaledCoordinates(e);
-        
-        socket.emit('browser-click', {
-            roomCode,
-            x: coords.x,
-            y: coords.y,
-            userName
+        // Keyboard event handling
+        document.addEventListener('keydown', (e) => {
+            if (browserFocused) {
+                e.preventDefault();
+                
+                // Handle special key combinations
+                if (e.ctrlKey || e.metaKey) {
+                    const keys = ['Control'];
+                    if (e.key !== 'Control') keys.push(e.key);
+                    
+                    socket.emit('browser-key-combo', {
+                        roomCode,
+                        keys: keys,
+                        userName
+                    });
+                } else if (e.key.length === 1) {
+                    // Regular character
+                    socket.emit('browser-type', {
+                        roomCode,
+                        text: e.key,
+                        userName
+                    });
+                } else {
+                    // Special keys
+                    socket.emit('browser-key', {
+                        roomCode,
+                        key: e.key,
+                        userName
+                    });
+                }
+            }
         });
-    });
 
-    // Optimized scroll wheel with throttling
-    const throttledWheel = throttle((e) => {
-        e.preventDefault();
-        
-        const currentY = parseInt(scrollY.value) || 0;
-        const newY = currentY + (e.deltaY > 0 ? 50 : -50);
-        
-        scrollY.value = Math.max(0, newY);
-        
-        socket.emit('browser-scroll', {
-            roomCode,
-            x: parseInt(scrollX.value) || 0,
-            y: newY,
-            userName
-        });
-    }, 16); // ~60 FPS
-
-    clickOverlay.addEventListener('wheel', throttledWheel);
-
-    // Optimized keyboard events
-    document.addEventListener('keydown', (e) => {
-        if (isTypingInChat || isTypingInUrlBar) return;
-        
-        // Prevent default for special keys
-        if (['Tab', 'Enter', 'Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Backspace', 'Delete'].includes(e.key)) {
+        // Click handling
+        browserScreenshot.addEventListener('click', (e) => {
             e.preventDefault();
-        }
-        
-        // Send all keys through the key handler
-        socket.emit('browser-key', {
-            roomCode,
-            key: e.key,
-            type: 'keydown',
-            userName
+            
+            // Focus the browser for keyboard input
+            browserScreenshot.focus();
+            
+            const coords = getScaledCoordinates(e);
+            
+            socket.emit('browser-click', {
+                roomCode,
+                x: coords.x,
+                y: coords.y,
+                userName
+            });
         });
-    });
 
-    shareBtn.addEventListener('click', () => {
-        shareModal.classList.remove('hidden');
-    });
+        // Mouse wheel scrolling
+        browserScreenshot.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            
+            socket.emit('browser-scroll-by', {
+                roomCode,
+                deltaX: e.deltaX,
+                deltaY: e.deltaY,
+                userName
+            });
+        });
 
-    document.getElementById('closeShareModal').addEventListener('click', () => {
-        shareModal.classList.add('hidden');
-    });
+        // Control button events
+        document.getElementById('typeBtn').addEventListener('click', () => {
+            const text = typeInput.value;
+            if (text) {
+                socket.emit('browser-type', { roomCode, text, userName });
+                typeInput.value = '';
+            }
+        });
 
-    document.getElementById('copyRoomCode').addEventListener('click', async () => {
-        try {
-            await navigator.clipboard.writeText(roomCode);
-            const btn = document.getElementById('copyRoomCode');
-            btn.textContent = 'Copied!';
-            btn.className = 'flex-1 bg-green-600 text-white py-2 px-4 rounded text-sm';
-            setTimeout(() => {
-                btn.textContent = 'Copy Code';
-                btn.className = 'flex-1 bg-purple-600 text-white py-2 px-4 rounded hover:bg-purple-700 text-sm';
-            }, 2000);
-        } catch (err) {
-            alert(`Room code: ${roomCode}`);
+        document.querySelectorAll('.key-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const key = btn.dataset.key;
+                socket.emit('browser-key', { roomCode, key, userName });
+            });
+        });
+
+        document.querySelectorAll('.combo-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const keys = JSON.parse(btn.dataset.keys);
+                socket.emit('browser-key-combo', { roomCode, keys, userName });
+            });
+        });
+
+        // Navigation events
+        document.getElementById('goBtn').addEventListener('click', () => {
+            const url = urlBar.value;
+            userIsTypingUrl = false; // Reset typing state
+            socket.emit('url-typing-stop', { roomCode });
+            socket.emit('browser-navigate', { roomCode, url, userName });
+        });
+
+        document.getElementById('backBtn').addEventListener('click', () => {
+            socket.emit('browser-back', { roomCode, userName });
+        });
+
+        document.getElementById('forwardBtn').addEventListener('click', () => {
+            socket.emit('browser-forward', { roomCode, userName });
+        });
+
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+            socket.emit('browser-reload', { roomCode, userName });
+        });
+
+        // Quick navigation
+        document.querySelectorAll('.quick-nav').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const url = btn.dataset.url;
+                urlBar.value = url;
+                userIsTypingUrl = false; // Reset typing state
+                socket.emit('url-typing-stop', { roomCode });
+                socket.emit('browser-navigate', { roomCode, url, userName });
+            });
+        });
+
+        // Scroll controls
+        document.getElementById('scrollBtn').addEventListener('click', () => {
+            const x = parseInt(scrollX.value) || 0;
+            const y = parseInt(scrollY.value) || 0;
+            socket.emit('browser-scroll', { roomCode, x, y, userName });
+        });
+
+        document.getElementById('scrollTop').addEventListener('click', () => {
+            socket.emit('browser-scroll', { roomCode, x: 0, y: 0, userName });
+        });
+
+        document.getElementById('scrollUp').addEventListener('click', () => {
+            socket.emit('browser-scroll-by', { roomCode, deltaX: 0, deltaY: -300, userName });
+        });
+
+        document.getElementById('scrollDown').addEventListener('click', () => {
+            socket.emit('browser-scroll-by', { roomCode, deltaX: 0, deltaY: 300, userName });
+        });
+
+        // Chat functionality
+        document.getElementById('sendBtn').addEventListener('click', () => {
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value.trim();
+            
+            if (message) {
+                socket.emit('chat-message', {
+                    roomCode,
+                    message: {
+                        userName,
+                        message,
+                        timestamp: Date.now()
+                    }
+                });
+                messageInput.value = '';
+            }
+        });
+
+        // Enter key handlers
+        typeInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('typeBtn').click();
+            }
+        });
+
+        document.getElementById('messageInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('sendBtn').click();
+            }
+        });
+
+        // URL bar enter - FIXED
+        urlBar.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('goBtn').click();
+            }
+        });
+
+        // Share modal functionality
+        document.getElementById('shareBtn').addEventListener('click', () => {
+            document.getElementById('shareModal').classList.remove('hidden');
+        });
+
+        document.getElementById('closeShareModal').addEventListener('click', () => {
+            document.getElementById('shareModal').classList.add('hidden');
+        });
+
+        document.getElementById('copyRoomCode').addEventListener('click', () => {
+            navigator.clipboard.writeText(roomCode).then(() => {
+                alert('Room code copied to clipboard!');
+            });
+        });
+
+        document.getElementById('leaveBtn').addEventListener('click', () => {
+            if (confirm('Are you sure you want to leave this room?')) {
+                window.location.href = '/';
+            }
+        });
+
+        // Coordinate calculation
+        function getScaledCoordinates(e) {
+            const rect = browserScreenshot.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            const naturalWidth = 1920;
+            const naturalHeight = 1080;
+            const displayWidth = rect.width;
+            const displayHeight = rect.height;
+            
+            const imageAspectRatio = naturalWidth / naturalHeight;
+            const displayAspectRatio = displayWidth / displayHeight;
+            
+            let actualImageWidth, actualImageHeight, offsetX = 0, offsetY = 0;
+            
+            if (imageAspectRatio > displayAspectRatio) {
+                actualImageWidth = displayWidth;
+                actualImageHeight = displayWidth / imageAspectRatio;
+                offsetY = (displayHeight - actualImageHeight) / 2;
+            } else {
+                actualImageHeight = displayHeight;
+                actualImageWidth = displayHeight * imageAspectRatio;
+                offsetX = (displayWidth - actualImageWidth) / 2;
+            }
+            
+            const adjustedX = x - offsetX;
+            const adjustedY = y - offsetY;
+            const scaleX = naturalWidth / actualImageWidth;
+            const scaleY = naturalHeight / actualImageHeight;
+            
+            const browserX = Math.round(adjustedX * scaleX);
+            const browserY = Math.round(adjustedY * scaleY);
+            
+            return {
+                x: Math.max(0, Math.min(browserX, naturalWidth - 1)),
+                y: Math.max(0, Math.min(browserY, naturalHeight - 1))
+            };
         }
-    });
 
-    leaveBtn.addEventListener('click', () => {
-        socket.emit('leave-room', { roomCode });
-        socket.disconnect();
-        window.location.href = '/';
-    });
+        function updateConnectionStatus(status) {
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+            
+            statusText.textContent = status;
+            
+            if (status === 'connected') {
+                statusDot.className = 'w-2 h-2 rounded-full bg-green-500';
+            } else if (status === 'connecting') {
+                statusDot.className = 'w-2 h-2 rounded-full bg-yellow-500 animate-pulse';
+            } else {
+                statusDot.className = 'w-2 h-2 rounded-full bg-red-500';
+            }
+        }
 
-    console.log('🖥️ Ultra-low latency virtual browser ready with responsive design and comic mode');
-</script>
+        console.log('🎭 Full Virtual Browser client ready with FIXED URL bar!');
+        console.log('Features: Typing, Scrolling, Clicking, Navigation, Keyboard Shortcuts, Forms');
+    </script>
 </body>
 </html>

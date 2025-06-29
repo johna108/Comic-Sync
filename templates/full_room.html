@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Full Virtual Browser - Room {{ room_code }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <style>
+        .perf-indicator {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 11px;
+            z-index: 1000;
+        }
+        
+        .keyboard-overlay {
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            z-index: 1000;
+            display: none;
+        }
+        
+        .browser-screenshot {
+            cursor: crosshair;
+        }
+        
+        .browser-screenshot:focus {
+            outline: 2px solid #3B82F6;
+            outline-offset: 2px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 overflow-hidden">
+    <!-- Performance Indicator -->
+    <div id="perfIndicator" class="perf-indicator">
+        FPS: <span id="fpsDisplay">0</span> | 
+        Video: <span id="videoDisplay">No</span> | 
+        Focus: <span id="focusDisplay">None</span>
+    </div>
+    
+    <!-- Keyboard Overlay -->
+    <div id="keyboardOverlay" class="keyboard-overlay">
+        <div class="text-center text-sm">
+            <div>🎯 Browser Focused - Type directly!</div>
+            <div class="mt-1 text-xs opacity-75">
+                Ctrl+C/V: Copy/Paste | Tab: Navigate | Enter: Submit | Esc: Unfocus
+            </div>
+        </div>
+    </div>
+
+    <div id="mainContainer" class="min-h-screen flex flex-col lg:flex-row">
+        <!-- Virtual Browser Panel -->
+        <div class="flex-1 flex flex-col">
+            <!-- Header -->
+            <div class="bg-white shadow-sm border-b p-4 flex items-center justify-between flex-shrink-0">
+                <div class="flex items-center gap-4">
+                    <h1 class="text-lg font-bold text-gray-800">Full Virtual Browser</h1>
+                    <span class="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded font-mono">{{ room_code }}</span>
+                    <span id="userCount" class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">👥 0</span>
+                    <span id="connectionStatus" class="px-2 py-1 text-xs rounded flex items-center gap-1">
+                        <div id="statusDot" class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>
+                        <span id="statusText">connecting</span>
+                    </span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="shareBtn" class="px-3 py-1 border border-blue-300 text-blue-600 rounded text-sm hover:bg-blue-50">
+                        Share
+                    </button>
+                    <button id="leaveBtn" class="px-3 py-1 border border-red-300 text-red-600 rounded text-sm hover:bg-red-50">
+                        Leave
+                    </button>
+                </div>
+            </div>
+
+            <!-- Browser Controls -->
+            <div class="bg-gray-50 border-b p-3 flex-shrink-0">
+                <!-- Navigation Bar -->
+                <div class="flex items-center gap-2 mb-2">
+                    <button id="backBtn" class="p-2 text-gray-600 hover:bg-gray-200 rounded disabled:opacity-50" title="Back">←</button>
+                    <button id="forwardBtn" class="p-2 text-gray-600 hover:bg-gray-200 rounded disabled:opacity-50" title="Forward">→</button>
+                    <button id="refreshBtn" class="p-2 text-gray-600 hover:bg-gray-200 rounded" title="Refresh">↻</button>
+                    <div class="flex-1 flex items-center bg-white border border-gray-300 rounded-md">
+                        <span class="px-3 py-2 text-gray-500 text-sm">🔒</span>
+                        <input 
+                            type="url" 
+                            id="urlBar" 
+                            placeholder="Enter URL..."
+                            class="flex-1 px-2 py-2 border-0 focus:outline-none text-sm"
+                            value="https://www.google.com"
+                        />
+                        <button id="goBtn" class="px-4 py-2 bg-blue-600 text-white text-sm hover:bg-blue-700 rounded-r-md">
+                            Go
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Quick Actions -->
+                <div class="flex gap-2 text-xs">
+                    <button class="quick-nav px-2 py-1 bg-white border rounded hover:bg-gray-50" data-url="https://www.webtoon.com">
+                        🔍 Webtoon
+                    </button>
+                    <button class="quick-nav px-2 py-1 bg-white border rounded hover:bg-gray-50" data-url="https://www.youtube.com">
+                        📺 YouTube
+                    </button>
+                    <button class="quick-nav px-2 py-1 bg-white border rounded hover:bg-gray-50" data-url="https://mangapark.net">
+                        💻 mangapark
+                    </button>
+                    <button class="quick-nav px-2 py-1 bg-white border rounded hover:bg-gray-50" data-url="https://mangadex.org/">
+                        📚 MangaDex
+                    </button>
+                </div>
+            </div>
+
+            <!-- Browser Status -->
+            <div id="browserStatus" class="bg-blue-500 text-white p-3 text-center flex-shrink-0">
+                <div class="flex items-center justify-center gap-2">
+                    <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span id="browserStatusText" class="text-sm">Starting FULL Playwright browser...</span>
+                </div>
+            </div>
+
+            <!-- Virtual Browser View -->
+            <div id="browserViewContainer" class="flex-1 relative bg-black">
+                <div id="loadingIndicator" class="absolute inset-0 flex items-center justify-center z-10">
+                    <div class="text-center text-white">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
+                        <p class="text-sm">Loading full virtual browser...</p>
+                    </div>
+                </div>
+
+                <!-- Screenshot Display -->
+                <div id="screenshotContainer" class="w-full h-full relative">
+                    <img 
+                        id="browserScreenshot" 
+                        class="browser-screenshot w-full h-full object-contain"
+                        style="display: none;"
+                        alt="Virtual Browser View"
+                        tabindex="0"
+                    />
+                </div>
+            </div>
+        </div>
+
+        <!-- Control Panel -->
+        <div id="controlPanel" class="w-full lg:w-80 bg-white border-l flex flex-col lg:h-screen">
+            <!-- Control Header -->
+            <div class="p-4 border-b flex-shrink-0">
+                <h2 class="text-lg font-semibold">Browser Controls</h2>
+                <div class="text-sm text-gray-600 mt-2">
+                    <span id="onlineCount">0</span> users online
+                </div>
+            </div>
+
+            <!-- Control Content -->
+            <div class="flex-1 flex flex-col min-h-0 overflow-y-auto">
+                <!-- Keyboard Controls -->
+                <div class="p-4 border-b bg-gray-50 flex-shrink-0">
+                    <h3 class="font-medium text-gray-800 mb-3">⌨️ Keyboard</h3>
+                    <div class="space-y-2">
+                        <div class="flex gap-2">
+                            <input 
+                                type="text" 
+                                id="typeInput" 
+                                placeholder="Type text..."
+                                class="flex-1 px-2 py-1 border border-gray-300 rounded text-xs"
+                            />
+                            <button id="typeBtn" class="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700">
+                                Type
+                            </button>
+                        </div>
+                        
+                        <!-- Special Keys -->
+                        <div class="grid grid-cols-3 gap-1 text-xs">
+                            <button class="key-btn px-2 py-1 bg-gray-200 rounded hover:bg-gray-300" data-key="Enter">Enter</button>
+                            <button class="key-btn px-2 py-1 bg-gray-200 rounded hover:bg-gray-300" data-key="Tab">Tab</button>
+                            <button class="key-btn px-2 py-1 bg-gray-200 rounded hover:bg-gray-300" data-key="Escape">Esc</button>
+                            <button class="key-btn px-2 py-1 bg-gray-200 rounded hover:bg-gray-300" data-key="Backspace">⌫</button>
+                            <button class="key-btn px-2 py-1 bg-gray-200 rounded hover:bg-gray-300" data-key="Delete">Del</button>
+                            <button class="key-btn px-2 py-1 bg-gray-200 rounded hover:bg-gray-300" data-key="Space">Space</button>
+                        </div>
+                        
+                        <!-- Arrow Keys -->
+                        <div class="grid grid-cols-3 gap-1 text-xs">
+                            <div></div>
+                            <button class="key-btn px-2 py-1 bg-gray-200 rounded hover:bg-gray-300" data-key="ArrowUp">↑</button>
+                            <div></div>
+                            <button class="key-btn px-2 py-1 bg-gray-200 rounded hover:bg-gray-300" data-key="ArrowLeft">←</button>
+                            <button class="key-btn px-2 py-1 bg-gray-200 rounded hover:bg-gray-300" data-key="ArrowDown">↓</button>
+                            <button class="key-btn px-2 py-1 bg-gray-200 rounded hover:bg-gray-300" data-key="ArrowRight">→</button>
+                        </div>
+                        
+                        <!-- Keyboard Shortcuts -->
+                        <div class="grid grid-cols-2 gap-1 text-xs">
+                            <button class="combo-btn px-2 py-1 bg-blue-200 rounded hover:bg-blue-300" data-keys='["Control", "c"]'>Ctrl+C</button>
+                            <button class="combo-btn px-2 py-1 bg-blue-200 rounded hover:bg-blue-300" data-keys='["Control", "v"]'>Ctrl+V</button>
+                            <button class="combo-btn px-2 py-1 bg-blue-200 rounded hover:bg-blue-300" data-keys='["Control", "a"]'>Ctrl+A</button>
+                            <button class="combo-btn px-2 py-1 bg-blue-200 rounded hover:bg-blue-300" data-keys='["Control", "z"]'>Ctrl+Z</button>
+                            <button class="combo-btn px-2 py-1 bg-blue-200 rounded hover:bg-blue-300" data-keys='["Control", "f"]'>Ctrl+F</button>
+                            <button class="combo-btn px-2 py-1 bg-blue-200 rounded hover:bg-blue-300" data-keys='["Control", "r"]'>Ctrl+R</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scroll Controls -->
+                <div class="p-4 border-b bg-gray-50 flex-shrink-0">
+                    <h3 class="font-medium text-gray-800 mb-3">📜 Scroll</h3>
+                    <div class="space-y-2">
+                        <div class="flex gap-2">
+                            <input 
+                                type="number" 
+                                id="scrollX" 
+                                placeholder="X"
+                                class="flex-1 px-2 py-1 border border-gray-300 rounded text-xs"
+                                value="0"
+                            />
+                            <input 
+                                type="number" 
+                                id="scrollY" 
+                                placeholder="Y"
+                                class="flex-1 px-2 py-1 border border-gray-300 rounded text-xs"
+                                value="0"
+                            />
+                            <button id="scrollBtn" class="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">
+                                Go
+                            </button>
+                        </div>
+                        
+                        <!-- Quick Scroll -->
+                        <div class="grid grid-cols-3 gap-1 text-xs">
+                            <button id="scrollTop" class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">Top</button>
+                            <button id="scrollUp" class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">↑ Up</button>
+                            <button id="scrollDown" class="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300">↓ Down</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Page Info -->
+                <div class="p-4 border-b bg-gray-50 flex-shrink-0">
+                    <h3 class="font-medium text-gray-800 mb-3">📄 Page Info</h3>
+                    <div class="space-y-2 text-xs">
+                        <div>
+                            <span class="font-medium">Title:</span>
+                            <div id="pageTitle" class="text-gray-600 break-words">Loading...</div>
+                        </div>
+                        <div>
+                            <span class="font-medium">URL:</span>
+                            <div id="currentUrl" class="text-gray-600 break-words">Loading...</div>
+                        </div>
+                        <div>
+                            <span class="font-medium">Scroll:</span>
+                            <span id="scrollInfo" class="text-gray-600">0, 0</span>
+                        </div>
+                        <div>
+                            <span class="font-medium">Focus:</span>
+                            <span id="focusInfo" class="text-gray-600">None</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Messages -->
+                <div class="flex-1 p-4">
+                    <h3 class="font-medium text-gray-800 mb-3">💬 Chat</h3>
+                    <div id="messages" class="space-y-2 mb-4 max-h-40 overflow-y-auto"></div>
+                    
+                    <!-- Message Input -->
+                    <div class="flex gap-2">
+                        <input 
+                            type="text" 
+                            id="messageInput" 
+                            placeholder="Type a message..."
+                            class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                        />
+                        <button 
+                            id="sendBtn"
+                            class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm"
+                        >
+                            Send
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Share Modal -->
+    <div id="shareModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full">
+            <h3 class="text-lg font-semibold mb-4">Share Room</h3>
+            <p class="text-sm text-gray-600 mb-4">Share this room code:</p>
+            <div class="bg-gray-100 p-3 rounded-lg text-center mb-4">
+                <div class="text-2xl font-bold font-mono text-purple-600">{{ room_code }}</div>
+            </div>
+            <div class="flex gap-2">
+                <button id="copyRoomCode" class="flex-1 bg-purple-600 text-white py-2 px-4 rounded hover:bg-purple-700">
+                    Copy Code
+                </button>
+                <button id="closeShareModal" class="flex-1 border border-gray-300 py-2 px-4 rounded hover:bg-gray-50">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Full Virtual Browser Client
+        const roomCode = '{{ room_code }}';
+        const urlParams = new URLSearchParams(window.location.search);
+        const userName = urlParams.get('userName');
+        const isCreator = urlParams.get('isCreator') === 'true';
+
+        if (!userName) {
+            alert('Please enter your name first');
+            window.location.href = '/';
+        }
+
+        // Initialize Socket.IO
+        const socket = io({
+            transports: ['websocket'],
+            upgrade: false,
+            rememberUpgrade: false,
+            timeout: 5000,
+            forceNew: true
+        });
+
+        // Performance tracking
+        let frameCount = 0;
+        let lastFpsTime = Date.now();
+        let browserFocused = false;
+
+        // DOM elements
+        const browserScreenshot = document.getElementById('browserScreenshot');
+        const fpsDisplay = document.getElementById('fpsDisplay');
+        const videoDisplay = document.getElementById('videoDisplay');
+        const focusDisplay = document.getElementById('focusDisplay');
+        const keyboardOverlay = document.getElementById('keyboardOverlay');
+        const scrollX = document.getElementById('scrollX');
+        const scrollY = document.getElementById('scrollY');
+        const typeInput = document.getElementById('typeInput');
+
+        // Performance update function
+        function updatePerformanceDisplay() {
+            frameCount++;
+            const now = Date.now();
+            
+            if (now - lastFpsTime >= 1000) {
+                const fps = Math.round(frameCount * 1000 / (now - lastFpsTime));
+                fpsDisplay.textContent = fps;
+                frameCount = 0;
+                lastFpsTime = now;
+            }
+        }
+
+        // Socket events
+        socket.on('connect', () => {
+            console.log('Connected to FULL browser server');
+            updateConnectionStatus('connected');
+            
+            socket.emit('join-room', { 
+                roomCode, 
+                userName, 
+                isCreator 
+            });
+        });
+
+        socket.on('screenshot-update', (data) => {
+            console.log('📸 Screenshot received');
+            
+            // Update screenshot
+            if (data.screenshot) {
+                browserScreenshot.src = `data:image/jpeg;base64,${data.screenshot}`;
+                browserScreenshot.style.display = 'block';
+                document.getElementById('loadingIndicator').style.display = 'none';
+            }
+            
+            // Update page info
+            if (data.pageInfo) {
+                const info = data.pageInfo;
+                
+                // Update scroll position
+                if (info.scroll) {
+                    scrollX.value = info.scroll.x;
+                    scrollY.value = info.scroll.y;
+                    document.getElementById('scrollInfo').textContent = `${info.scroll.x}, ${info.scroll.y}`;
+                }
+                
+                // Update page details
+                document.getElementById('pageTitle').textContent = info.title || 'Unknown';
+                document.getElementById('currentUrl').textContent = info.url || 'Unknown';
+                document.getElementById('urlBar').value = info.url || '';
+                
+                // Update focus info
+                if (info.focus) {
+                    const focusText = `${info.focus.tagName}${info.focus.type ? `[${info.focus.type}]` : ''}`;
+                    document.getElementById('focusInfo').textContent = focusText;
+                    focusDisplay.textContent = focusText;
+                } else {
+                    document.getElementById('focusInfo').textContent = 'None';
+                    focusDisplay.textContent = 'None';
+                }
+                
+                // Update video status
+                videoDisplay.textContent = info.media?.hasVideo ? 'Yes' : 'No';
+            }
+            
+            updatePerformanceDisplay();
+        });
+
+        socket.on('browser-ready', (data) => {
+            document.getElementById('browserStatus').className = 'bg-green-500 text-white p-3 text-center flex-shrink-0';
+            document.getElementById('browserStatusText').textContent = 'Full virtual browser ready! 🎭⌨️📜🖱️';
+            
+            console.log('Browser features:', data.features);
+        });
+
+        socket.on('page-info-update', (data) => {
+            document.getElementById('backBtn').disabled = !data.canGoBack;
+            document.getElementById('forwardBtn').disabled = !data.canGoForward;
+        });
+
+        socket.on('browser-dialog', (data) => {
+            alert(`Browser ${data.type}: ${data.message}`);
+        });
+
+        socket.on('room-users', (roomUsers) => {
+            document.getElementById('userCount').textContent = `👥 ${roomUsers.length}`;
+            document.getElementById('onlineCount').textContent = roomUsers.length;
+        });
+
+        socket.on('chat-message', (message) => {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'text-sm p-2 bg-gray-100 rounded';
+            messageDiv.innerHTML = `
+                <div class="font-medium text-xs ${message.userName === userName ? 'text-blue-600' : 'text-gray-700'}">${message.userName}</div>
+                <div class="text-xs text-gray-600">${message.message}</div>
+            `;
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        });
+
+        // Browser focus management
+        browserScreenshot.addEventListener('focus', () => {
+            browserFocused = true;
+            keyboardOverlay.style.display = 'block';
+            browserScreenshot.style.outline = '2px solid #3B82F6';
+        });
+
+        browserScreenshot.addEventListener('blur', () => {
+            browserFocused = false;
+            keyboardOverlay.style.display = 'none';
+            browserScreenshot.style.outline = 'none';
+        });
+
+        // Keyboard event handling
+        document.addEventListener('keydown', (e) => {
+            if (browserFocused) {
+                e.preventDefault();
+                
+                // Handle special key combinations
+                if (e.ctrlKey || e.metaKey) {
+                    const keys = ['Control'];
+                    if (e.key !== 'Control') keys.push(e.key);
+                    
+                    socket.emit('browser-key-combo', {
+                        roomCode,
+                        keys: keys,
+                        userName
+                    });
+                } else if (e.key.length === 1) {
+                    // Regular character
+                    socket.emit('browser-type', {
+                        roomCode,
+                        text: e.key,
+                        userName
+                    });
+                } else {
+                    // Special keys
+                    socket.emit('browser-key', {
+                        roomCode,
+                        key: e.key,
+                        userName
+                    });
+                }
+            }
+        });
+
+        // Click handling
+        browserScreenshot.addEventListener('click', (e) => {
+            e.preventDefault();
+            
+            // Focus the browser for keyboard input
+            browserScreenshot.focus();
+            
+            const coords = getScaledCoordinates(e);
+            
+            socket.emit('browser-click', {
+                roomCode,
+                x: coords.x,
+                y: coords.y,
+                userName
+            });
+        });
+
+        // Mouse wheel scrolling
+        browserScreenshot.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            
+            socket.emit('browser-scroll-by', {
+                roomCode,
+                deltaX: e.deltaX,
+                deltaY: e.deltaY,
+                userName
+            });
+        });
+
+        // Control button events
+        document.getElementById('typeBtn').addEventListener('click', () => {
+            const text = typeInput.value;
+            if (text) {
+                socket.emit('browser-type', { roomCode, text, userName });
+                typeInput.value = '';
+            }
+        });
+
+        document.querySelectorAll('.key-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const key = btn.dataset.key;
+                socket.emit('browser-key', { roomCode, key, userName });
+            });
+        });
+
+        document.querySelectorAll('.combo-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const keys = JSON.parse(btn.dataset.keys);
+                socket.emit('browser-key-combo', { roomCode, keys, userName });
+            });
+        });
+
+        // Navigation events
+        document.getElementById('goBtn').addEventListener('click', () => {
+            const url = document.getElementById('urlBar').value;
+            socket.emit('browser-navigate', { roomCode, url, userName });
+        });
+
+        document.getElementById('backBtn').addEventListener('click', () => {
+            socket.emit('browser-back', { roomCode, userName });
+        });
+
+        document.getElementById('forwardBtn').addEventListener('click', () => {
+            socket.emit('browser-forward', { roomCode, userName });
+        });
+
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+            socket.emit('browser-reload', { roomCode, userName });
+        });
+
+        // Quick navigation
+        document.querySelectorAll('.quick-nav').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const url = btn.dataset.url;
+                document.getElementById('urlBar').value = url;
+                socket.emit('browser-navigate', { roomCode, url, userName });
+            });
+        });
+
+        // Scroll controls
+        document.getElementById('scrollBtn').addEventListener('click', () => {
+            const x = parseInt(scrollX.value) || 0;
+            const y = parseInt(scrollY.value) || 0;
+            socket.emit('browser-scroll', { roomCode, x, y, userName });
+        });
+
+        document.getElementById('scrollTop').addEventListener('click', () => {
+            socket.emit('browser-scroll', { roomCode, x: 0, y: 0, userName });
+        });
+
+        document.getElementById('scrollUp').addEventListener('click', () => {
+            socket.emit('browser-scroll-by', { roomCode, deltaX: 0, deltaY: -300, userName });
+        });
+
+        document.getElementById('scrollDown').addEventListener('click', () => {
+            socket.emit('browser-scroll-by', { roomCode, deltaX: 0, deltaY: 300, userName });
+        });
+
+        // Chat functionality
+        document.getElementById('sendBtn').addEventListener('click', () => {
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value.trim();
+            
+            if (message) {
+                socket.emit('chat-message', {
+                    roomCode,
+                    message: {
+                        userName,
+                        message,
+                        timestamp: Date.now()
+                    }
+                });
+                messageInput.value = '';
+            }
+        });
+
+        // Enter key for type input and chat
+        typeInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('typeBtn').click();
+            }
+        });
+
+        document.getElementById('messageInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('sendBtn').click();
+            }
+        });
+
+        // URL bar enter
+        document.getElementById('urlBar').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('goBtn').click();
+            }
+        });
+
+        // Coordinate calculation
+        function getScaledCoordinates(e) {
+            const rect = browserScreenshot.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            const naturalWidth = 1920;
+            const naturalHeight = 1080;
+            const displayWidth = rect.width;
+            const displayHeight = rect.height;
+            
+            const imageAspectRatio = naturalWidth / naturalHeight;
+            const displayAspectRatio = displayWidth / displayHeight;
+            
+            let actualImageWidth, actualImageHeight, offsetX = 0, offsetY = 0;
+            
+            if (imageAspectRatio > displayAspectRatio) {
+                actualImageWidth = displayWidth;
+                actualImageHeight = displayWidth / imageAspectRatio;
+                offsetY = (displayHeight - actualImageHeight) / 2;
+            } else {
+                actualImageHeight = displayHeight;
+                actualImageWidth = displayHeight * imageAspectRatio;
+                offsetX = (displayWidth - actualImageWidth) / 2;
+            }
+            
+            const adjustedX = x - offsetX;
+            const adjustedY = y - offsetY;
+            const scaleX = naturalWidth / actualImageWidth;
+            const scaleY = naturalHeight / actualImageHeight;
+            
+            const browserX = Math.round(adjustedX * scaleX);
+            const browserY = Math.round(adjustedY * scaleY);
+            
+            return {
+                x: Math.max(0, Math.min(browserX, naturalWidth - 1)),
+                y: Math.max(0, Math.min(browserY, naturalHeight - 1))
+            };
+        }
+
+        function updateConnectionStatus(status) {
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+            
+            statusText.textContent = status;
+            
+            if (status === 'connected') {
+                statusDot.className = 'w-2 h-2 rounded-full bg-green-500';
+            } else if (status === 'connecting') {
+                statusDot.className = 'w-2 h-2 rounded-full bg-yellow-500 animate-pulse';
+            } else {
+                statusDot.className = 'w-2 h-2 rounded-full bg-red-500';
+            }
+        }
+
+        console.log('🎭 Full Virtual Browser client ready!');
+        console.log('Features: Typing, Scrolling, Clicking, Navigation, Keyboard Shortcuts, Forms');
+    </script>
+</body>
+</html>

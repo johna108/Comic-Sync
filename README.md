@@ -8,7 +8,7 @@ A real-time synchronized virtual browser application built with **Python Flask a
 - **Virtual Browser**: Playwright with Chromium
 - **Frontend**: HTML/CSS/JavaScript with Tailwind CSS
 - **Real-time Communication**: WebSocket via SocketIO
-- **Performance**: Optimized for 30 FPS with video detection
+- **Performance**: Currently Optimized for 15 FPS
 
 ## 🚀 Features
 
@@ -140,7 +140,7 @@ The application uses optimized Chrome flags for performance:
 - **Connection Status**: WebSocket connection health
 
 ### Expected Performance
-- **Frame Rate**: 30 FPS base, optimized for video content
+- **Frame Rate**: 15 FPS base, optimized for video content
 - **Latency**: <100ms for user interactions
 - **Memory Usage**: ~100-200MB per browser instance
 - **Concurrent Users**: Limited by server resources
@@ -195,10 +195,6 @@ CMD ["python", "app.py"]
 4. Test thoroughly
 5. Submit a pull request
 
-## 📝 License
-
-This project is open source. Please check the repository for license information.
-
 ## 🆘 Troubleshooting
 
 ### Common Issues
@@ -230,5 +226,9 @@ This project is open source. Please check the repository for license information
 - [ ] File upload and drag-and-drop support
 
 ---
+
+## 📝 License
+
+This project is open source. Any Contributions are highly appreciated.
 
 **Built with ❤️ using Python, Flask, Playwright, and SocketIO**

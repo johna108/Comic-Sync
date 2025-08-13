@@ -2,7 +2,7 @@
 
 A real-time synchronized virtual browser application built with **Python Flask and Playwright**, enabling multiple users to browse the web together with optimized performance for comics, manga, and video content.
 
-## 🐍 Technology Stack
+##  Technology Stack
 
 - **Backend**: Python Flask + Flask-SocketIO
 - **Virtual Browser**: Playwright with Chromium
@@ -10,7 +10,7 @@ A real-time synchronized virtual browser application built with **Python Flask a
 - **Real-time Communication**: WebSocket via SocketIO
 - **Performance**: Currently Optimized for 15 FPS
 
-## 🚀 Features
+##  Features
 
 - **Real-time Browser Sync**: Multiple users can view and interact with the same browser session
 - **Full Browser Functionality**: Complete web browsing experience with navigation, clicking, scrolling, and typing
@@ -21,7 +21,7 @@ A real-time synchronized virtual browser application built with **Python Flask a
 - **Responsive Design**: Works on desktop and mobile devices
 - **Performance Monitoring**: Real-time FPS and connection status indicators
 
-## 🎯 Use Cases
+## Use Cases
 
 - **Collaborative Comic/Manga Reading**: Perfect for Webtoon, MangaPark, MangaDex
 - **Video Sharing**: Optimized for YouTube and video streaming
@@ -29,7 +29,7 @@ A real-time synchronized virtual browser application built with **Python Flask a
 - **Educational Sessions**: Group web exploration and learning
 - **Content Review**: Collaborative content browsing and discussion
 
-## 🛠️ Setup
+##  Setup
 
 ### Prerequisites
 
@@ -72,7 +72,7 @@ A real-time synchronized virtual browser application built with **Python Flask a
 6. **Open your browser**:
    Go to [http://localhost:5000](http://localhost:5000)
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 ├── app.py                 # Main Flask application with Playwright integration
@@ -85,7 +85,7 @@ A real-time synchronized virtual browser application built with **Python Flask a
 └── README.md
 ```
 
-## 🎮 Usage
+## Usage
 
 1. **Start the Server**: Run `python app.py`
 2. **Create Room**: Enter your name and click "Create Room"
@@ -95,7 +95,7 @@ A real-time synchronized virtual browser application built with **Python Flask a
 6. **Chat**: Use the chat panel to communicate with other users
 7. **Monitor Performance**: Watch the performance indicator for FPS and video detection
 
-## 🎬 Performance Features
+## Performance Features
 
 ### Video Optimization
 - **Automatic Detection**: Detects playing video content
@@ -110,7 +110,7 @@ A real-time synchronized virtual browser application built with **Python Flask a
 - **URL Management**: Smart URL bar with typing state detection
 - **Page State Tracking**: Scroll position, focus state, and more
 
-## 🔧 Configuration
+## Configuration
 
 ### Environment Variables
 
@@ -131,7 +131,7 @@ The application uses optimized Chrome flags for performance:
 '--disable-backgrounding-occluded-windows'
 ```
 
-## 📊 Performance Monitoring
+## Performance Monitoring
 
 ### Real-time Indicators
 - **FPS Display**: Current frame rate
@@ -145,28 +145,28 @@ The application uses optimized Chrome flags for performance:
 - **Memory Usage**: ~100-200MB per browser instance
 - **Concurrent Users**: Limited by server resources
 
-## 🎯 Quick Navigation
+## Quick Navigation
 
 The application includes quick navigation buttons for popular sites:
-- 🔍 **Webtoon**: https://www.webtoon.com
-- 📺 **YouTube**: https://www.youtube.com
-- 💻 **MangaPark**: https://mangapark.net
-- 📚 **MangaDex**: https://mangadex.org/
+-  **Webtoon**: https://www.webtoon.com
+-  **YouTube**: https://www.youtube.com
+-  **MangaPark**: https://mangapark.net
+-  **MangaDex**: https://mangadex.org/
 
-## 🔍 API Endpoints
+##  API Endpoints
 
 - `GET /` - Home page
 - `GET /room/<room_code>` - Room interface
 - `GET /health` - Health check endpoint
 - `GET /api/room/<room_code>` - Room information
 
-## 🛡️ Security Notes
+##  Security Notes
 
 - **Development Mode**: CORS is open for development
 - **Public Rooms**: No authentication required
 - **Browser Security**: Some Chrome security features are disabled for functionality
 
-## 🚀 Deployment
+##  Deployment
 
 ### Production Considerations
 - Set proper `SECRET_KEY` environment variable
@@ -187,7 +187,7 @@ EXPOSE 5000
 CMD ["python", "app.py"]
 ```
 
-## 🤝 Contributing
+##  Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -195,7 +195,7 @@ CMD ["python", "app.py"]
 4. Test thoroughly
 5. Submit a pull request
 
-## 🆘 Troubleshooting
+##  Troubleshooting
 
 ### Common Issues
 
@@ -214,7 +214,7 @@ CMD ["python", "app.py"]
 - Check firewall settings
 - Ensure port 5000 is available
 
-## 🔮 Future Enhancements
+##  Future Enhancements
 
 - [ ] User authentication and room permissions
 - [ ] Persistent room states and chat history
@@ -227,7 +227,7 @@ CMD ["python", "app.py"]
 
 ---
 
-## 📝 License
+##  License
 
 This project is open source. Any Contributions are highly appreciated.
 
